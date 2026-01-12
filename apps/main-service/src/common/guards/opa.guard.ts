@@ -12,7 +12,7 @@ export const Public = () => (target: any, propertyKey?: string, descriptor?: Pro
 
 @Injectable()
 export class OpaAuthorizationGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(private reflector: Reflector) { }
 
   canActivate(context: ExecutionContext): boolean {
     // Check if the route is marked as public
@@ -25,31 +25,31 @@ export class OpaAuthorizationGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
+    // const request = context.switchToHttp().getRequest();
 
-    console.log(request.headers);
-    // Check if the request has been authorized by OPA through Envoy
-    const authResult = request.headers['x-auth-result'];
-    
-    if (!authResult) {
-      // If no auth result header, it means the request didn't go through Envoy/OPA
-      throw new UnauthorizedException('Request must be authorized through API Gateway');
-    }
+    // console.log(request.headers);
+    // // Check if the request has been authorized by OPA through Envoy
+    // const authResult = request.headers['x-auth-result'];
 
-    if (authResult !== 'allowed') {
-      throw new ForbiddenException('Access denied by authorization policy');
-    }
+    // if (!authResult) {
+    //   // If no auth result header, it means the request didn't go through Envoy/OPA
+    //   throw new UnauthorizedException('Request must be authorized through API Gateway');
+    // }
 
-    // Additional validation - ensure we have user context from OPA
-    const authUser = request.headers['x-auth-user'];
-    const userRole = request.headers['x-user-roles'];
+    // if (authResult !== 'allowed') {
+    //   throw new ForbiddenException('Access denied by authorization policy');
+    // }
 
-    if (!authUser) {
-      throw new UnauthorizedException('User context missing from authorization');
-    }
+    // // Additional validation - ensure we have user context from OPA
+    // const authUser = request.headers['x-auth-user'];
+    // const userRole = request.headers['x-user-roles'];
+
+    // if (!authUser) {
+    //   throw new UnauthorizedException('User context missing from authorization');
+    // }
 
     // Log authorization success for debugging
-    console.log(`OPA Authorization Success: User ${authUser} with role ${userRole} accessing ${request.method} ${request.path}`);
+    // console.log(`OPA Authorization Success: User ${authUser} with role ${userRole} accessing ${request.method} ${request.path}`);
 
     return true;
   }

@@ -16,6 +16,17 @@ import { FileModule } from './file/file.module';
 import { SERVICES, KAFKA_CLIENT_CONFIG } from '@app/shared';
 import { OpaAuthorizationGuard } from './common/guards/opa.guard';
 
+import { WarehouseGroupsModule } from './modules/warehouse-groups/warehouse-groups.module';
+import { WarehousesModule } from './modules/warehouses/warehouses.module';
+import { WarehouseTransitionsModule } from './modules/warehouse-transitions/warehouse-transitions.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { SeedService } from './common/services/seed.service';
+import { DeviceModule } from './modules/devices/devices.module';
+import { DeviceImportModule } from './modules/device-imports/device-imports.module';
+import { DeviceExportModule } from './modules/device-exports/device-exports.module';
+import { DeviceHistoryModule } from './modules/device-histories/device-historys.module';
+import { InventorySessionModule } from './modules/inventory-sessions/inventory-sessions.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -25,8 +36,8 @@ import { OpaAuthorizationGuard } from './common/guards/opa.guard';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('DATABASE_URL') || 
-             configService.get<string>('MONGODB_URI')
+        uri: configService.get<string>('DATABASE_URL') ||
+          configService.get<string>('MONGODB_URI')
       }),
       inject: [ConfigService],
     }),
@@ -72,14 +83,25 @@ import { OpaAuthorizationGuard } from './common/guards/opa.guard';
     TokenModule,
     PolicyAdminModule,
     // FileModule, // Module mới để xử lý file upload qua Kafka
+    WarehouseGroupsModule,
+    WarehousesModule,
+    WarehouseTransitionsModule,
+    CategoriesModule,
+    DeviceModule,
+    DeviceImportModule,
+    DeviceExportModule,
+    DeviceHistoryModule,
+    InventorySessionModule,
   ],
   controllers: [HealthController],
   providers: [
+    SeedService,
     {
+
       provide: APP_GUARD,
       useClass: OpaAuthorizationGuard,
     },
   ],
 })
 
-export class AppModule {}
+export class AppModule { }

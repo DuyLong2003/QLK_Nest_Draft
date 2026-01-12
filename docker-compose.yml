@@ -1,74 +1,44 @@
 version: '3.8'
+
 services:
-  # Zookeeper - Required for Kafka
-  # zookeeper:
-  #   image: confluentinc/cp-zookeeper:7.4.0
-  #   hostname: zookeeper
-  #   container_name: zookeeper
-  #   ports:
-  #     - "2181:2181"
-  #   environment:
-  #     ZOOKEEPER_CLIENT_PORT: 2181
-  #     ZOOKEEPER_TICK_TIME: 2000
-  #   networks:
-  #     - microservices-network
+  mongo:
+    image: mongo:6.0
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - microservices-network
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
 
-  # # Kafka Broker
-  # kafka:
-  #   image: confluentinc/cp-kafka:7.4.0
-  #   hostname: kafka
-  #   container_name: kafka
-  #   depends_on:
-  #     - zookeeper
-  #   ports:
-  #     - "9092:9092"
-  #     - "9101:9101"
-  #   environment:
-  #     KAFKA_BROKER_ID: 1
-  #     KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-  #     KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-  #     KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-  #     KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-  #     KAFKA_JMX_PORT: 9101
-  #     KAFKA_JMX_OPTS: -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.rmi.port=9101
-  #   networks:
-  #     - microservices-network
-
-  # Envoy - API Gateway
   envoy:
     image: envoyproxy/envoy:v1.24.3
     hostname: envoy
     container_name: envoy
     ports:
-      - "8080:8080"  # Main gateway port
-      - "10000:10000"  # Admin interface
+      - "8080:8080"   
+      - "10000:10000" 
     volumes:
       - ./config/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
-      # - /containers/data/glorin/config/envoy:/data.json:ro
-
     command: ["/usr/local/bin/envoy", "-c", "/etc/envoy/envoy.yaml", "-l", "debug"]
     depends_on:
       - opa
     networks:
       - microservices-network
     extra_hosts:
-      - "nestjs-backend:192.168.1.8"  # Map backend hostname to IP
+      - "nestjs-backend:host-gateway"
 
-  # OPA - Open Policy Agent
   opa:
     image: openpolicyagent/opa:latest-envoy-static
     hostname: opa
     container_name: opa
     ports:
-      - "8181:8181"  # OPA API port
-      - "9191:9191"  # gRPC port for Envoy
+      - "8181:8181" 
+      - "9191:9191" 
     volumes:
       - ./config/opa:/policies:ro
-      # - /containers/data/glorin/config/opa:/data.json:ro
-    command: 
+    command:
       - "run"
       - "--server"
       - "--addr=0.0.0.0:8181"
@@ -84,3 +54,5 @@ networks:
   microservices-network:
     driver: bridge
 
+volumes:
+  mongo_data:
