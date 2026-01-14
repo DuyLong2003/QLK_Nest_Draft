@@ -25,7 +25,7 @@ export class OpaAuthorizationGuard implements CanActivate {
       return true;
     }
 
-    // const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
 
     // console.log(request.headers);
     // // Check if the request has been authorized by OPA through Envoy

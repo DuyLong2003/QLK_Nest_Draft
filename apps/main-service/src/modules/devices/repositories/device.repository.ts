@@ -11,8 +11,11 @@ export class DeviceRepository {
 
   async create(createDeviceDto: CreateDeviceDto): Promise<Device> {
     const deviceData: any = { ...createDeviceDto };
-
     return this.deviceModel.create(deviceData);
+  }
+
+  async insertMany(devices: any[], options: any = {}): Promise<Device[]> {
+    return this.deviceModel.insertMany(devices, options);
   }
 
   async findAll(filter: any = {}): Promise<Device[]> {
@@ -21,19 +24,14 @@ export class DeviceRepository {
 
   async findAllWithPagination(filter: any = {}, options: any = {}): Promise<PaginateResult<Device>> {
     const { page = 1, limit = 10, sortBy, populate } = options;
-
-    // Build options for plugin
     const paginateOptions: any = {
       page: Number(page),
       limit: Number(limit),
       sortBy: sortBy || 'createdAt:desc'
     };
-
     if (populate) {
       paginateOptions.populate = populate;
     }
-
-    // Use the paginate plugin
     return this.deviceModel.paginate(filter, paginateOptions);
   }
 
@@ -44,7 +42,6 @@ export class DeviceRepository {
   async update(id: string, updateDeviceDto: UpdateDeviceDto): Promise<Device | null> {
     const updateData: any = { ...updateDeviceDto };
     updateData.updatedAt = new Date();
-
     return this.deviceModel.findByIdAndUpdate(id, updateData, { new: true }).exec();
   }
 

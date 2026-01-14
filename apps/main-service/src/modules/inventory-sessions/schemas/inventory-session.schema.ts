@@ -8,10 +8,10 @@ import { DeviceImport } from '../../device-imports/schemas/device-import.schemas
 @Schema({ timestamps: true })
 export class InventorySession extends Document {
     @Prop({ required: true, unique: true })
-    code: string; // Mã phiên (VD: PKK-2026-001)
+    code: string;
 
     @Prop({ required: true })
-    name: string; // Tên phiên (VD: Kiểm kê lần 1)
+    name: string;
 
     @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'DeviceImport', required: true })
     importId: DeviceImport;
@@ -22,11 +22,11 @@ export class InventorySession extends Document {
     @Prop()
     note: string;
 
-    // Danh sách serial đã quét trong phiên này
     @Prop({
         type: [{
             serial: String,
-            model: String,
+            model: String,      // Tên hiển thị (VD: Camera Wifi A1)
+            productCode: String, // Mã định danh (VD: CAM-001)
             scannedAt: { type: Date, default: Date.now }
         }],
         default: []
@@ -34,6 +34,7 @@ export class InventorySession extends Document {
     details: Array<{
         serial: string;
         model: string;
+        productCode: string;
         scannedAt: Date;
     }>;
 

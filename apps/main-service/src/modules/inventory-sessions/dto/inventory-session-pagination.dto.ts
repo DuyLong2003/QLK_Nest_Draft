@@ -17,6 +17,10 @@ export class InventorySessionPaginationDto {
 
     @IsOptional()
     @IsString()
+    search?: string;
+
+    @IsOptional()
+    @IsString()
     sortBy?: string;
 
     @IsOptional()

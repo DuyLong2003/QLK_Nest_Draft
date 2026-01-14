@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DeviceRepository } from '../repositories/device.repository';
 import { CreateDeviceDto } from '../dto/create-device.dto';
 import { UpdateDeviceDto } from '../dto/update-device.dto';
@@ -11,6 +11,10 @@ export class DeviceService {
 
   async create(createDeviceDto: CreateDeviceDto): Promise<Device> {
     return this.deviceRepository.create(createDeviceDto);
+  }
+
+  async insertMany(devices: any[], options: any = {}): Promise<Device[]> {
+    return this.deviceRepository.insertMany(devices, options);
   }
 
   async findAll(filter: any = {}): Promise<Device[]> {
@@ -34,12 +38,10 @@ export class DeviceService {
     if (!device) {
       throw new NotFoundException('Device not found');
     }
-
     const updatedDevice = await this.deviceRepository.update(id, updateDeviceDto);
     if (!updatedDevice) {
       throw new BadRequestException('Failed to update device');
     }
-
     return updatedDevice;
   }
 
@@ -48,12 +50,10 @@ export class DeviceService {
     if (!device) {
       throw new NotFoundException('Device not found');
     }
-
     const deletedDevice = await this.deviceRepository.delete(id);
     if (!deletedDevice) {
       throw new BadRequestException('Failed to delete device');
     }
-
     return deletedDevice;
   }
 }

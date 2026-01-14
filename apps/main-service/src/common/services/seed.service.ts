@@ -359,10 +359,13 @@ export class SeedService implements OnModuleInit {
     try {
       this.logger.log('Seeding Users...');
 
-      // Lấy Role User mặc định để gán
       const roles = await this.fncRoleService.findAll();
-      const userRole = roles.find((r: any) => r.code === 'user');
-      const roleId = userRole ? (userRole as any)._id : null;
+
+      // Helper tìm role id an toàn
+      const getRoleId = (code: string) => {
+        const r = roles.find((role: any) => role.code === code);
+        return r ? (r as any)._id : null;
+      };
 
       const users = [
         {
@@ -370,27 +373,32 @@ export class SeedService implements OnModuleInit {
           username: 'admin',
           name: 'Administrator',
           password: 'password123',
-          role: '696459bd637e972bbbace1fb'
+          role: getRoleId('super_admin') // Tìm ID động
         },
         {
           email: 'kho@alvar.vn',
           username: 'nhanvienkho',
           name: 'Nhân viên Kho',
           password: 'password123',
-          role: '696459bd637e972bbbace204'
+          role: getRoleId('user')
         },
         {
           email: 'nhap@alvar.vn',
           username: 'user1',
           name: 'Nguyễn Văn Nhập',
           password: 'password123',
-          role: '696459bd637e972bbbace20d'
+          role: getRoleId('user')
         }
       ];
 
       const allUsers = await this.usersService.findAll();
 
       for (const u of users) {
+        if (!u.role) {
+          this.logger.warn(`Skipping user ${u.username} because role not found`);
+          continue;
+        }
+
         const exists = allUsers.find((dbUser: any) => dbUser.email === u.email);
         if (!exists) {
           await this.usersService.create(u as any);

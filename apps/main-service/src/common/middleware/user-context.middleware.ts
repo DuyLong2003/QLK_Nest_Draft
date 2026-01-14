@@ -11,7 +11,7 @@ export interface UserContext {
 
 @Injectable()
 export class UserContextMiddleware implements NestMiddleware {
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(private readonly jwtService: JwtService) { }
 
   use(req: Request, res: Response, next: NextFunction) {
     try {
@@ -23,7 +23,7 @@ export class UserContextMiddleware implements NestMiddleware {
         userContext = {
           userId: req.headers['x-auth-user'] as string || req.headers['x-user-id'] as string,
           role: req.headers['x-user-role'] as string || 'guest',
-          permissions: req.headers['x-user-permissions'] 
+          permissions: req.headers['x-user-permissions']
             ? (req.headers['x-user-permissions'] as string).split(',').map(p => p.trim())
             : [],
           tenantId: req.headers['x-tenant-id'] as string || 'default',
@@ -31,7 +31,7 @@ export class UserContextMiddleware implements NestMiddleware {
       } else {
         // Priority 2: Fallback to JWT token for direct access (development/testing)
         const authHeader = req.headers.authorization;
-        
+
         if (authHeader && authHeader.startsWith('Bearer ')) {
           const token = authHeader.substring(7);
           try {

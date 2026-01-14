@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, ConflictException } from '@nestjs/common';
+import { InjectConnection } from '@nestjs/mongoose';
+import { Connection } from 'mongoose';
 import { InventorySessionRepository } from '../repositories/inventory-session.repository';
 import { CreateInventorySessionDto } from '../dto/create-inventory-session.dto';
 import { UpdateInventorySessionDto } from '../dto/update-inventory-session.dto';
@@ -18,6 +20,7 @@ export class InventorySessionService {
         private readonly deviceService: DeviceService,
         private readonly warehouseRepo: WarehouseRepository,
         private readonly categoryRepo: CategoryRepository,
+        @InjectConnection() private readonly connection: Connection,
     ) { }
 
     async create(createDto: CreateInventorySessionDto, userId: string): Promise<InventorySession> {
@@ -45,29 +48,97 @@ export class InventorySessionService {
         if (!session) throw new NotFoundException('Không tìm thấy phiên kiểm kê');
         if (session.status === 'completed') throw new BadRequestException('Phiên đã hoàn thành');
 
-        const updateData: any = { ...updateDto, updatedBy: userId };
-
-        if (updateDto?.scannedItems?.length > 0) {
-            const newDetails = [
-                ...session.details,
-                ...updateDto.scannedItems.map(item => ({
-                    ...item,
-                    scannedAt: new Date()
-                }))
-            ];
-            updateData.details = newDetails;
-            updateData.totalScanned = newDetails.length;
-            delete updateData.scannedItems;
-        }
-
-        const updatedSession = await this.sessionRepo.update(id, updateData);
-
-        // Nếu status là completed -> Kích hoạt nhập kho
         if (updateDto.status === 'completed') {
-            await this.processSessionCompletion(updatedSession);
+            return await this.completeSession(session, userId);
         }
 
-        return updatedSession;
+        if (updateDto.scannedItems && updateDto.scannedItems.length > 0) {
+            const newSerials = updateDto.scannedItems.map(i => i.serial);
+            const existingSerials = session.details.map(d => d.serial);
+            const duplicates = newSerials.filter(s => existingSerials.includes(s));
+
+            if (duplicates.length > 0) {
+                throw new ConflictException(`Serial đã tồn tại trong phiên này: ${duplicates.join(', ')}`);
+            }
+
+            const itemsToPush = updateDto.scannedItems.map(item => ({
+                serial: item.serial,
+                model: item.model,
+                productCode: item.productCode || 'Unknown',
+                scannedAt: new Date()
+            }));
+
+            const updated = await this.sessionRepo.addScannedItems(id, itemsToPush, userId);
+            return updated!;
+        }
+
+        return await this.sessionRepo.update(id, { ...updateDto, updatedBy: userId }) as InventorySession;
+    }
+
+    private async completeSession(session: InventorySession, userId: string): Promise<InventorySession> {
+        const mongoSession = await this.connection.startSession();
+        mongoSession.startTransaction();
+
+        try {
+            this.logger.log(`Bắt đầu hoàn tất phiên ${session.code}`);
+
+            const warehouse = await this.warehouseRepo.findOne({ code: 'PENDING_QC' });
+            if (!warehouse) throw new Error('Cấu hình lỗi: Không tìm thấy kho PENDING_QC');
+
+            const importIdStr = String(session.importId);
+            const importTicket = await this.deviceImportService.findById(importIdStr);
+            if (!importTicket) throw new Error('Không tìm thấy phiếu nhập');
+
+            const category = await this.categoryRepo.findOne({ name: importTicket.productType });
+
+            const devicesToCreate = session.details.map(item => ({
+                code: item.serial,
+                serial: item.serial,
+                name: item.model,
+                deviceModel: item.productCode || item.model,
+                unit: 'Cái',
+                qcStatus: 'PENDING',
+                warehouseId: String(warehouse._id),
+                categoryId: category ? String(category._id) : null,
+                importId: String(importTicket._id),
+                supplierId: importTicket.supplier || 'Unknown',
+                importDate: importTicket.importDate,
+                history: []
+            }));
+
+            if (devicesToCreate.length > 0) {
+                await this.deviceService.insertMany(devicesToCreate, { session: mongoSession });
+            }
+
+            const currentImported = importTicket.serialImported || 0;
+            const newTotal = currentImported + session.totalScanned;
+
+            let newImportStatus = importTicket.inventoryStatus;
+            if (newTotal > 0 && newTotal < importTicket.totalQuantity) newImportStatus = 'in-progress';
+            if (newTotal >= importTicket.totalQuantity) newImportStatus = 'completed';
+
+            await this.deviceImportService.updateProgress(String(importTicket._id), {
+                serialImported: newTotal
+            });
+
+            await this.sessionRepo.sessionModel.findByIdAndUpdate(
+                String(session._id),
+                { status: 'completed', updatedBy: userId },
+                { session: mongoSession }
+            );
+
+            await mongoSession.commitTransaction();
+            this.logger.log(`Hoàn tất phiên ${session.code} thành công. Đã tạo ${devicesToCreate.length} thiết bị.`);
+
+            return await this.sessionRepo.findById(String(session._id)) as InventorySession;
+
+        } catch (error: any) {
+            await mongoSession.abortTransaction();
+            this.logger.error(`Lỗi hoàn tất phiên: ${error.message}`);
+            throw new BadRequestException(`Lỗi hoàn tất phiên: ${error.message}`);
+        } finally {
+            await mongoSession.endSession();
+        }
     }
 
     async findAll(filter: any = {}): Promise<InventorySession[]> {
@@ -75,69 +146,6 @@ export class InventorySessionService {
     }
 
     async findById(id: string): Promise<InventorySession> {
-        const session = await this.sessionRepo.findById(id);
-        if (!session) throw new NotFoundException('Not Found');
-        return session;
-    }
-
-    private async processSessionCompletion(session: InventorySession) {
-        try {
-            const importIdStr = session.importId.toString();
-            const importTicket = await this.deviceImportService.findById(importIdStr);
-
-            // 1. Cập nhật tiến độ vào Phiếu Nhập
-            const currentImported = importTicket.serialImported || 0;
-            const sessionCount = session.totalScanned;
-
-            await this.deviceImportService.updateProgress(importIdStr, {
-                serialImported: currentImported + sessionCount
-            });
-
-            // 2. Tìm Config để tạo Device
-            const warehouse = await this.warehouseRepo.findOne({ code: 'PENDING_QC' });
-            const category = await this.categoryRepo.findOne({ name: importTicket.productType });
-
-            if (!warehouse) {
-                this.logger.error(`Không tìm thấy kho có code='PENDING_QC'. Hãy kiểm tra lại Seed Data.`);
-            }
-            if (!category) {
-                this.logger.error(`Không tìm thấy danh mục có name='${importTicket.productType}'. Hãy kiểm tra lại Seed Data hoặc ProductType gửi lên.`);
-            }
-
-            if (!warehouse || !category) {
-                this.logger.warn('Bỏ qua bước tạo Device do thiếu cấu hình Kho/Danh mục.');
-                return;
-            }
-
-            // 3. Tạo Devices
-            let successCount = 0;
-            for (const item of session.details) {
-                try {
-                    await this.deviceService.create({
-                        code: item.serial,
-                        name: item.model,
-                        deviceModel: item.model,
-                        serial: item.serial,
-                        status: 'PENDING_QC',
-                        warehouseId: warehouse._id,
-                        categoryId: category._id,
-                        unit: 'Cái',
-                        importId: importTicket._id,
-                        supplierId: importTicket.supplier,
-                        importDate: importTicket.importDate,
-                        p2p: '',
-                        mac: '',
-                        price: 0
-                    } as any);
-                    successCount++;
-                } catch (e) {
-                    this.logger.error(`Lỗi tạo device ${item.serial}: ${e.message}`);
-                }
-            }
-            this.logger.log(`Đã nhập kho thành công ${successCount}/${session.details.length} thiết bị từ phiên ${session.code}`);
-
-        } catch (error) {
-            this.logger.error('Lỗi trong quá trình xử lý hoàn thành phiên:', error);
-        }
+        return this.sessionRepo.findById(id) as Promise<InventorySession>;
     }
 }

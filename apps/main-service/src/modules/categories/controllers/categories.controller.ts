@@ -16,7 +16,7 @@ import { UpdateCategoryDto } from '../dto/update-categories.dto';
 import { CategoryPaginationDto } from '../dto/categories-pagination.dto';
 import { createFilterAndOptions } from '../../../utils/pick.util';
 
-@Controller('categorys')
+@Controller('categories')
 export class CategoryController {
   constructor(private readonly categoryService: CategoriesService) { }
 
@@ -30,7 +30,7 @@ export class CategoryController {
   async findAll(@Query() query: CategoryPaginationDto) {
     const { filter, options } = createFilterAndOptions(
       query,
-      [], // Filter keys for exact match
+      [],
       ['name', 'description'], // Search keys for regex search
       ['sortBy', 'limit', 'page', 'populate']
     );
@@ -47,8 +47,8 @@ export class CategoryController {
   async findAllPaginated(@Query() query: CategoryPaginationDto) {
     const { filter, options } = createFilterAndOptions(
       query,
-      [], // Filter keys for exact match
-      ['name', 'description'], // Search keys for regex search
+      [],
+      ['name', 'description'],
       ['sortBy', 'limit', 'page', 'populate']
     );
 
