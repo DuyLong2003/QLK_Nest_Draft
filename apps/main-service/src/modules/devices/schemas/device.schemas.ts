@@ -63,7 +63,16 @@ export class Device extends Document {
   warehouseUpdatedAt?: Date;
 
   @Prop()
+  importDate?: Date;
+
+  @Prop()
   warehouseUpdatedBy?: string;
+
+  @Prop()
+  createdAt?: Date;
+
+  @Prop()
+  updatedAt?: Date;
 
   // Virtual for id (will be handled by toJSON plugin)
   declare id?: string;

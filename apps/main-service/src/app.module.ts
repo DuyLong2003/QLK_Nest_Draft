@@ -26,6 +26,7 @@ import { DeviceImportModule } from './modules/device-imports/device-imports.modu
 import { DeviceExportModule } from './modules/device-exports/device-exports.module';
 import { DeviceHistoryModule } from './modules/device-histories/device-historys.module';
 import { InventorySessionModule } from './modules/inventory-sessions/inventory-sessions.module';
+import { ExcelModule } from './common/excel/excel.module';
 
 @Module({
   imports: [
@@ -92,6 +93,7 @@ import { InventorySessionModule } from './modules/inventory-sessions/inventory-s
     DeviceExportModule,
     DeviceHistoryModule,
     InventorySessionModule,
+    ExcelModule,
   ],
   controllers: [HealthController],
   providers: [

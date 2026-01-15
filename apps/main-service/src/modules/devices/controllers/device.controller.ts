@@ -8,13 +8,14 @@ import {
   Delete,
   Param,
   HttpStatus,
-  HttpCode
+  HttpCode,
+  Res
 } from '@nestjs/common';
+import { Response } from 'express';
 import { DeviceService } from '../services/device.service';
 import { CreateDeviceDto } from '../dto/create-device.dto';
 import { UpdateDeviceDto } from '../dto/update-device.dto';
 import { DevicePaginationDto } from '../dto/device-pagination.dto';
-import { createFilterAndOptions } from '../../../utils/pick.util';
 
 @Controller('devices')
 export class DeviceController {
@@ -26,31 +27,32 @@ export class DeviceController {
     return this.deviceService.create(createDeviceDto);
   }
 
-  @Get()
-  async findAll(@Query() query: DevicePaginationDto) {
-    const { filter, options } = createFilterAndOptions(
-      query,
-      ['categoryId', 'warehouseId', 'importId', 'currentExportId'], // Filter keys for exact match
-      ['serial', 'mac', 'p2p', 'name', 'model', 'unit'], // Search keys for regex search
-      ['sortBy', 'limit', 'page', 'populate']
-    );
+  @Get('export')
+  async exportExcel(@Query() query: DevicePaginationDto, @Res() res: Response) {
+    const filter = this.buildFilter(query);
 
-    // Nếu có tham số phân trang, sử dụng phân trang
-    if (query.page || query.limit) {
-      return this.deviceService.findAllWithPagination(filter, options);
-    }
-    // Nếu không, trả về tất cả với filter
-    return this.deviceService.findAll(filter);
+    const buffer = await this.deviceService.exportExcel(filter);
+
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename=Danh_sach_thiet_bi_${Date.now()}.xlsx`,
+      'Content-Length': buffer.length,
+    });
+
+    res.end(buffer);
   }
 
-  @Get('paginated')
-  async findAllPaginated(@Query() query: DevicePaginationDto) {
-    const { filter, options } = createFilterAndOptions(
-      query,
-      ['categoryId', 'warehouseId', 'importId', 'currentExportId'], // Filter keys for exact match
-      ['serial', 'mac', 'p2p', 'name', 'model', 'unit'], // Search keys for regex search
-      ['sortBy', 'limit', 'page', 'populate']
-    );
+  // --- Endpoint List (Pagination) ---
+  @Get()
+  async findAll(@Query() query: DevicePaginationDto) {
+    const filter = this.buildFilter(query);
+
+    const options = {
+      page: query.page || 1,
+      limit: query.limit || 10,
+      sortBy: query.sortBy || 'createdAt:desc',
+      populate: query.populate || 'warehouseId', // Populate để lấy tên kho
+    };
 
     return this.deviceService.findAllWithPagination(filter, options);
   }
@@ -68,5 +70,43 @@ export class DeviceController {
   @Delete(':id')
   async delete(@Param('id') id: string) {
     return this.deviceService.delete(id);
+  }
+
+  private buildFilter(query: DevicePaginationDto): any {
+    const filter: any = {};
+
+    // 1. Exact Match
+    if (query.warehouseId) filter.warehouseId = query.warehouseId;
+    if (query.categoryId) filter.categoryId = query.categoryId;
+    if (query.importId) filter.importId = query.importId;
+
+    // 2. Partial Match (Search fields)
+    if (query.serial) filter.serial = { $regex: query.serial, $options: 'i' };
+    if (query.name) filter.name = { $regex: query.name, $options: 'i' };
+    if (query.model) filter.deviceModel = { $regex: query.model, $options: 'i' };
+
+    // 3. Global Search (Priority)
+    if (query.search) {
+      const searchRegex = { $regex: query.search, $options: 'i' };
+      const orConditions = [
+        { serial: searchRegex },
+        { name: searchRegex },
+        { deviceModel: searchRegex }
+      ];
+      if (Object.keys(filter).length > 0) {
+        filter.$or = orConditions;
+      } else {
+        Object.assign(filter, { $or: orConditions });
+      }
+    }
+
+    // 4. Date Range
+    if (query.createdFrom || query.createdTo) {
+      filter.createdAt = {};
+      if (query.createdFrom) filter.createdAt.$gte = new Date(query.createdFrom);
+      if (query.createdTo) filter.createdAt.$lte = new Date(query.createdTo);
+    }
+
+    return filter;
   }
 }

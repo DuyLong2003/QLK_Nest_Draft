@@ -1,20 +1,19 @@
 import { IsDateString, IsMongoId, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { Type } from 'class-transformer';
 
 export class DevicePaginationDto {
-  // Base pagination fields
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(1)
-  page?: number = 1;
+  page: number = 1;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(1)
   @Max(100)
-  limit?: number = 10;
+  limit: number = 10;
 
   @IsOptional()
   @IsString()
@@ -24,31 +23,7 @@ export class DevicePaginationDto {
   @IsString()
   populate?: string;
 
-  // Filter fields based on entity
-  @IsOptional()
-  @IsString()
-  serial?: string;
-
-  @IsOptional()
-  @IsString()
-  mac?: string;
-
-  @IsOptional()
-  @IsString()
-  p2p?: string;
-
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @IsOptional()
-  @IsString()
-  model?: string;
-
-  @IsOptional()
-  @IsString()
-  unit?: string;
-
+  // --- Exact Match Filters ---
   @IsOptional()
   @IsMongoId()
   categoryId?: string;
@@ -61,36 +36,24 @@ export class DevicePaginationDto {
   @IsMongoId()
   importId?: string;
 
-  @IsOptional()
-  @IsMongoId()
-  currentExportId?: string;
-
-  // Search fields based on string fields in entity
+  // --- Search ---
   @IsOptional()
   @IsString()
-  serialSearch?: string;
+  search?: string; // Global search
 
   @IsOptional()
   @IsString()
-  macSearch?: string;
+  serial?: string;
 
   @IsOptional()
   @IsString()
-  p2pSearch?: string;
+  name?: string;
 
   @IsOptional()
   @IsString()
-  nameSearch?: string;
+  model?: string; // Map to deviceModel
 
-  @IsOptional()
-  @IsString()
-  modelSearch?: string;
-
-  @IsOptional()
-  @IsString()
-  unitSearch?: string;
-
-  // Date range filters
+  // --- Date Range ---
   @IsOptional()
   @IsDateString()
   createdFrom?: string;
@@ -98,12 +61,4 @@ export class DevicePaginationDto {
   @IsOptional()
   @IsDateString()
   createdTo?: string;
-
-  @IsOptional()
-  @IsDateString()
-  updatedFrom?: string;
-
-  @IsOptional()
-  @IsDateString()
-  updatedTo?: string;
 }

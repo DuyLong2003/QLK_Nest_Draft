@@ -24,7 +24,7 @@ const deleteAtPath = (obj: any, path: string[], index: number): void => {
  */
 export const toJSONPlugin = (schema: Schema): void => {
   let transform: any;
-  
+
   if (schema.options.toJSON && schema.options.toJSON.transform) {
     transform = schema.options.toJSON.transform;
   }
@@ -43,17 +43,17 @@ export const toJSONPlugin = (schema: Schema): void => {
         ret.id = ret._id.toString();
         delete ret._id;
       }
-      
+
       // Remove mongoose internal fields
       delete ret.__v;
-      delete ret.createdAt;
-      delete ret.updatedAt;
-      
+      // delete ret.createdAt;
+      // delete ret.updatedAt;
+
       // Apply any existing transform
       if (transform) {
         return transform(doc, ret, options);
       }
-      
+
       return ret;
     },
   });
