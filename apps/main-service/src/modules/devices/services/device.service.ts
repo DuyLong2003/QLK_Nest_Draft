@@ -7,6 +7,9 @@ import { Device, DeviceModel } from '../schemas/device.schemas';
 import { InjectModel } from '@nestjs/mongoose';
 import { ExcelService } from 'apps/main-service/src/common/excel/excel.service';
 import { ExcelColumn } from 'apps/main-service/src/common/excel/interfaces/excel-column.interface';
+import { WarehouseTransition } from '../../warehouse-transitions/schemas/warehouse-transition.schemas';
+import { DeviceHistory } from '../../device-histories/schemas/device-history.schemas';
+import { Model } from 'mongoose';
 
 @Injectable()
 export class DeviceService {
@@ -14,6 +17,9 @@ export class DeviceService {
     private readonly deviceRepository: DeviceRepository,
     @InjectModel(Device.name) private deviceModel: DeviceModel,
     private excelService: ExcelService,
+
+    @InjectModel(WarehouseTransition.name) private transitionModel: Model<WarehouseTransition>,
+    @InjectModel(DeviceHistory.name) private historyModel: Model<DeviceHistory>,
   ) { }
 
   async create(createDeviceDto: CreateDeviceDto): Promise<Device> {
@@ -129,5 +135,76 @@ export class DeviceService {
     ];
 
     return this.excelService.exportTableData(devices, columns, 'Danh sách thiết bị');
+  }
+
+  /**
+   * [CORE LOGIC] Chuyển kho theo quy trình Config-driven
+   * 1. Check tồn tại
+   * 2. Check rule transition
+   * 3. Update Device
+   * 4. Write History
+   */
+  async transfer(
+    deviceId: string,
+    toWarehouseId: string,
+    userId: string, // ID người thực hiện
+    note?: string
+  ): Promise<Device> {
+    // 1. Lấy thông tin thiết bị
+    const device = await this.deviceModel.findById(deviceId);
+    if (!device) {
+      throw new NotFoundException('Device not found');
+    }
+
+    const fromWarehouseId = device.warehouseId.toString(); // Lấy ID kho hiện tại
+
+    // Nếu chuyển đến chính kho hiện tại thì bỏ qua
+    if (fromWarehouseId === toWarehouseId) {
+      return device;
+    }
+
+    // 2. Validate Rule Transition
+    // Tìm rule cho phép đi từ A -> B
+    const transition = await this.transitionModel.findOne({
+      fromWarehouseId: fromWarehouseId,
+      toWarehouseId: toWarehouseId,
+      isActive: true
+    }).exec();
+
+    // Nếu không có rule -> Chặn ngay lập tức
+    if (!transition) {
+      throw new BadRequestException(
+        `Lỗi: Không thể chuyển từ kho ${fromWarehouseId} sang ${toWarehouseId}`
+      );
+    }
+
+    // TODO: Check role user có nằm trong transition.allowedRoles không 
+
+    // 3. Thực hiện chuyển kho
+    device.warehouseId = toWarehouseId as any;
+    device.warehouseUpdatedAt = new Date();
+    device.warehouseUpdatedBy = userId;
+
+    // đổi trạng thái QC (Ví dụ từ PENDING -> PASS)
+    if (transition.transitionType === 'QC_PASS') {
+      device.qcStatus = 'PASS';
+    } else if (transition.transitionType === 'QC_FAIL') {
+      device.qcStatus = 'FAIL';
+    }
+
+    const savedDevice = await device.save();
+
+    // 4. Ghi lịch sử (Async)
+    await this.historyModel.create({
+      deviceId: device._id,
+      fromWarehouseId: fromWarehouseId,
+      toWarehouseId: toWarehouseId,
+      actorId: userId,
+      action: transition.transitionType || 'TRANSFER',
+      note: note || 'Chuyển kho thủ công',
+      createdAt: new Date()
+    });
+
+    return savedDevice;
   }
 }

@@ -37,7 +37,8 @@ export class DeviceImport extends Document {
       quantity: Number,
       boxCount: Number,
       itemsPerBox: Number,
-      serialImported: { type: Number, default: 0 }
+      serialImported: { type: Number, default: 0 },
+      expectedSerials: { type: [String], default: [] }
     }],
     default: []
   })
@@ -47,6 +48,7 @@ export class DeviceImport extends Document {
     boxCount: number;
     itemsPerBox: number;
     serialImported: number;
+    expectedSerials: string[];
   }>;
 
   @Prop({ default: 0 })
@@ -61,7 +63,7 @@ export class DeviceImport extends Document {
   @Prop({ required: true })
   totalQuantity!: number;
 
-  @Prop()
+  @Prop({ default: 'DRAFT' })
   status!: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })

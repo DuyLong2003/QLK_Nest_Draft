@@ -1,412 +1,242 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { FncRoleService } from '../../fnc-roles/services/fnc-role.service';
-import { WarehouseTransitionService } from '../../modules/warehouse-transitions/services/warehouse-transition.service';
-import { WarehouseGroupService } from '../../modules/warehouse-groups/services/warehouse-group.service';
-import { WarehouseService } from '../../modules/warehouses/services/warehouse.service';
-import { UserService } from '../../users/services/user.service';
-import { CategoriesService } from '../../modules/categories/services/categories.service';
-
-interface RolePermissionData {
-  name: string;
-  code: string;
-  permissions: string[];
-}
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { FncRole } from '../../fnc-roles/entities/fnc-role.entity';
+import { User } from '../../users/entities/user.entity';
+import { WarehouseGroup } from '../../modules/warehouse-groups/schemas/warehouse-group.schemas';
+import { Warehouse } from '../../modules/warehouses/schemas/warehouse.schemas';
+import { WarehouseTransition } from '../../modules/warehouse-transitions/schemas/warehouse-transition.schemas';
+import * as bcrypt from 'bcrypt';
+import { WarehouseCode, TransitionType, ActionType } from '../constants/warehouse.constant';
 
 @Injectable()
 export class SeedService implements OnModuleInit {
   private readonly logger = new Logger(SeedService.name);
 
   constructor(
-    private readonly fncRoleService: FncRoleService,
-    private readonly warehouseGroupsService: WarehouseGroupService,
-    private readonly warehousesService: WarehouseService,
-    private readonly warehouseTransitionsService: WarehouseTransitionService,
-    private readonly categoriesService: CategoriesService,
-    private readonly usersService: UserService,
+    @InjectModel(FncRole.name) private fncRoleModel: Model<FncRole>,
+    @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(WarehouseGroup.name) private warehouseGroupModel: Model<WarehouseGroup>,
+    @InjectModel(Warehouse.name) private warehouseModel: Model<Warehouse>,
+    @InjectModel(WarehouseTransition.name) private warehouseTransitionModel: Model<WarehouseTransition>,
   ) { }
 
   async onModuleInit() {
-    await this.seedRolesAndPermissions();
+    this.logger.log('Starting Seed Service...');
+    await this.seedRoles();
     await this.seedUsers();
-    await this.seedCategories();
-    await this.seedWarehouseData();
+    await this.seedWarehousesAndTransitions();
+    this.logger.log('Seed Service Completed.');
   }
 
-  private async seedRolesAndPermissions() {
-    try {
-      this.logger.log('Starting to seed roles and permissions...');
+  // --- 1. SEED ROLES ---
+  private async seedRoles() {
+    const roles = [
+      { name: 'Super Admin', code: 'super_admin', description: 'Full access' },
+      { name: 'Warehouse Staff', code: 'warehouse_staff', description: 'Manage inventory' },
+      { name: 'QC Staff', code: 'qc_staff', description: 'Quality control' },
+      { name: 'Accountant', code: 'accountant', description: 'View reports' },
+    ];
 
-      const defaultRoles: RolePermissionData[] = [
-        {
-          name: 'Super Admin',
-          code: 'super_admin',
-          permissions: [
-            'manage_users',
-            'create_user',
-            'update_user',
-            'delete_user',
-            'get_user',
-            'list_users',
-            'manage_roles',
-            'create_role',
-            'update_role',
-            'delete_role',
-            'get_role',
-            'list_roles',
-            'manage_permissions',
-            'manage_tokens',
-            'view_system_logs',
-            'manage_system_settings',
-          ],
-        },
-        {
-          name: 'Admin',
-          code: 'admin',
-          permissions: [
-            'manage_users',
-            'create_user',
-            'update_user',
-            'delete_user',
-            'get_user',
-            'list_users',
-            'get_role',
-            'list_roles',
-            'manage_tokens',
-          ],
-        },
-        {
-          name: 'Editor',
-          code: 'editor',
-          permissions: [
-            'create_user',
-            'update_user',
-            'get_user',
-            'list_users',
-            'get_role',
-            'list_roles',
-          ],
-        },
-        {
-          name: 'Viewer',
-          code: 'viewer',
-          permissions: [
-            'get_user',
-            'list_users',
-            'get_role',
-            'list_roles',
-          ],
-        },
-        {
-          name: 'User',
-          code: 'user',
-          permissions: [
-            'get_user',
-            'update_own_profile',
-            'change_own_password',
-          ],
-        },
-      ];
-
-      for (const roleData of defaultRoles) {
-        // Check if role already exists
-        const existingRoles = await this.fncRoleService.findAll();
-        const existingRole = existingRoles.find((role: any) => role.code === roleData.code);
-
-        if (!existingRole) {
-          await this.fncRoleService.create({
-            name: roleData.name,
-            code: roleData.code,
-            permissions: roleData.permissions,
-          });
-          this.logger.log(`Created role: ${roleData.name} (${roleData.code})`);
-        } else {
-          this.logger.log(`Role already exists: ${roleData.name} (${roleData.code})`);
-
-          // Update permissions if they have changed
-          const hasNewPermissions = roleData.permissions.some(
-            permission => !existingRole.permissions.includes(permission)
-          );
-
-          if (hasNewPermissions) {
-            await this.fncRoleService.update(existingRole.id || existingRole._id?.toString() || '', {
-              permissions: roleData.permissions,
-            });
-            this.logger.log(`Updated permissions for role: ${roleData.name}`);
-          }
-        }
+    for (const role of roles) {
+      const exists = await this.fncRoleModel.findOne({ code: role.code });
+      if (!exists) {
+        await this.fncRoleModel.create(role);
+        this.logger.log(`Created Role: ${role.name}`);
       }
-
-      this.logger.log('Roles and permissions seeding completed successfully');
-    } catch (error) {
-      this.logger.error('Failed to seed roles and permissions', error);
     }
   }
 
-  async createDefaultAdminUser() {
-    // This method can be used to create a default admin user
-    // You can call this from a CLI command or startup script
-    try {
-      const adminRole = await this.fncRoleService.findAll();
-      const superAdminRole = adminRole.find((role: any) => role.code === 'super_admin');
+  // --- 2. SEED USERS ---
+  private async seedUsers() {
+    const adminRole = await this.fncRoleModel.findOne({ code: 'super_admin' });
+    if (!adminRole) return;
 
-      if (superAdminRole) {
-        // Create admin user logic here
-        // const adminUser = await this.userService.create({...});
-        this.logger.log('Default admin user created');
-      }
-    } catch (error) {
-      this.logger.error('Failed to create default admin user', error);
+    const adminEmail = 'admin@example.com';
+    const exists = await this.userModel.findOne({ email: adminEmail });
+    if (!exists) {
+      const hashedPassword = await bcrypt.hash('123456', 10);
+      await this.userModel.create({
+        email: adminEmail,
+        password: hashedPassword,
+        name: 'Super Admin',
+        username: 'admin',
+        roles: [adminRole._id],
+        isActive: true,
+      });
+      this.logger.log(`Created User: ${adminEmail}`);
     }
   }
 
-  // --- LOGIC SEED KHO  ---
-  private async seedWarehouseData() {
-    try {
-      this.logger.log('Starting to seed Warehouse System...');
+  // --- 3. SEED WAREHOUSES & TRANSITIONS (Config-driven) ---
+  private async seedWarehousesAndTransitions() {
+    const internalGroup = await this.ensureGroup('Kho nội bộ', 1);
+    const warrantyGroup = await this.ensureGroup('Kho bảo hành', 2);
+    const exportedGroup = await this.ensureGroup('Đã xuất', 3);
 
-      // 1. Seed Warehouse Groups
-      const groupInternal = await this.ensureGroup('Kho nội bộ', 1);
-      const groupExported = await this.ensureGroup('Đã xuất khỏi kho', 2);
-
-      // 2. Seed Warehouses 
-
-      // Kho: PENDING_QC
-      const pendingQC = await this.ensureWarehouse({
+    // B. Tạo Warehouses (Logic + UI Config)
+    const warehousesData = [
+      // 1. Kho Chờ QC
+      {
+        code: WarehouseCode.PENDING_QC,
         name: 'Chờ QC',
-        code: 'PENDING_QC',
-        groupId: groupInternal._id.toString(),
-        orderIndex: 1,
+        groupId: internalGroup._id,
         color: 'blue',
+        orderIndex: 1,
         icon: 'clock-circle',
         config: {
-          columns: [
-            { key: 'serial', title: 'Số Serial', type: 'text' },
-            { key: 'model', title: 'Model', type: 'text' },
-            { key: 'importDate', title: 'Ngày nhập', type: 'date' },
-            { key: 'importId', title: 'Phiếu nhập', type: 'link' },
-          ],
-          filters: [
-            { key: 'serial', type: 'text', label: 'Tìm Serial' },
-            { key: 'model', type: 'text', label: 'Model' },
-          ],
-          actions: ['scan', 'import_excel'], // Action đặc thù
+          columns: ['serial', 'name', 'model', 'importDate'],
+          actions: [ActionType.SCAN, ActionType.QC_BATCH],
           quickTransfers: [
-            { to: 'READY_TO_EXPORT', label: 'QC Pass', style: 'success' },
-            { to: 'DEFECT', label: 'QC Fail', style: 'danger' }
+            { to: WarehouseCode.READY_TO_EXPORT, label: 'QC Pass', style: 'success' },
+            { to: WarehouseCode.DEFECT, label: 'QC Fail', style: 'danger' }
           ]
         }
-      });
-
-      // Kho: READY_TO_EXPORT
-      const readyExport = await this.ensureWarehouse({
+      },
+      // 2. Kho Sẵn sàng xuất
+      {
+        code: WarehouseCode.READY_TO_EXPORT,
         name: 'Sẵn sàng xuất',
-        code: 'READY_TO_EXPORT',
-        groupId: groupInternal._id,
-        orderIndex: 2,
+        groupId: internalGroup._id,
         color: 'green',
+        orderIndex: 2,
         icon: 'check-circle',
         config: {
-          columns: [
-            { key: 'serial', title: 'Serial', type: 'text' },
-            { key: 'model', title: 'Model', type: 'text' },
-            { key: 'qcDate', title: 'Ngày QC', type: 'date' }
-          ],
-          filters: [],
-          actions: ['export_create'],
-          quickTransfers: []
+          columns: ['serial', 'name', 'model', 'importDate', 'qcStatus'],
+          actions: [ActionType.SCAN, ActionType.EXPORT_CREATE, ActionType.TRANSFER],
         }
-      });
-
-      // Kho: DEFECT
-      const defect = await this.ensureWarehouse({
-        name: 'Lỗi - Chờ BH',
-        code: 'DEFECT',
-        groupId: groupInternal._id,
-        orderIndex: 3,
+      },
+      // 3. Kho Lỗi
+      {
+        code: WarehouseCode.DEFECT,
+        name: 'Kho Lỗi',
+        groupId: internalGroup._id,
         color: 'red',
+        orderIndex: 3,
         icon: 'close-circle',
         config: {
-          columns: [{ key: 'serial', title: 'Serial', type: 'text' }],
-          filters: [],
-          actions: ['send_warranty'],
-          quickTransfers: []
+          columns: ['serial', 'name', 'qcNote'],
+          actions: [ActionType.WARRANTY_SEND],
         }
-      });
-
-      // Kho: IN_WARRANTY
-      const inWarranty = await this.ensureWarehouse({
-        name: 'Đang BH NCC',
-        code: 'IN_WARRANTY',
-        groupId: groupInternal._id,
-        orderIndex: 4,
+      },
+      // 4. Đang bảo hành
+      {
+        code: WarehouseCode.IN_WARRANTY,
+        name: 'Đang bảo hành NCC',
+        groupId: warrantyGroup._id,
         color: 'orange',
+        orderIndex: 1,
         icon: 'tool',
         config: {
-          columns: [{ key: 'serial', title: 'Serial', type: 'text' }],
-          filters: [],
-          actions: ['receive_warranty'],
-          quickTransfers: []
+          columns: ['serial', 'sentDate', 'supplier'],
+          actions: ['warranty_receive'],
         }
-      });
-
-      // Kho: SOLD
-      const sold = await this.ensureWarehouse({
-        name: 'Đã xuất - Trong BH',
-        code: 'SOLD_WARRANTY',
-        groupId: groupExported._id,
+      },
+      // 5. Đã bán
+      {
+        code: WarehouseCode.SOLD,
+        name: 'Đã xuất bán',
+        groupId: exportedGroup._id,
+        color: 'gray',
         orderIndex: 1,
-        color: 'purple',
-        icon: 'export',
+        icon: 'shopping-cart',
         config: {
-          columns: [
-            { key: 'serial', title: 'Serial', type: 'text' },
-            { key: 'customer', title: 'Khách hàng', type: 'text' },
-            { key: 'exportDate', title: 'Ngày xuất', type: 'date' }
-          ],
-          filters: [],
+          columns: ['serial', 'customer', 'exportDate'],
           actions: [],
-          quickTransfers: []
         }
-      });
+      }
+    ];
 
-      // 3. Seed Transitions
+    const whMap: Record<string, any> = {};
+    for (const w of warehousesData) {
+      const wh = await this.ensureWarehouse(w);
+      whMap[w.code] = wh._id;
+    }
 
-      // Rule 1: Import -> Pending QC
-      await this.ensureTransition(null, pendingQC._id, 'IMPORT');
+    // C. Tạo Transitions (Luật chuyển kho)
+    const transitionsData = [
+      // Import -> Pending QC
+      { from: null, to: WarehouseCode.PENDING_QC, type: TransitionType.IMPORT },
 
-      // Rule 2: Pending QC -> Ready (QC Pass)
-      await this.ensureTransition(pendingQC._id, readyExport._id, 'QC_PASS');
+      // QC Pass -> Ready
+      { from: WarehouseCode.PENDING_QC, to: WarehouseCode.READY_TO_EXPORT, type: TransitionType.QC_PASS },
 
-      // Rule 3: Pending QC -> Defect (QC Fail)
-      await this.ensureTransition(pendingQC._id, defect._id, 'QC_FAIL');
+      // QC Fail -> Defect
+      { from: WarehouseCode.PENDING_QC, to: WarehouseCode.DEFECT, type: TransitionType.QC_FAIL },
 
-      // Rule 4: Ready -> Sold (Export)
-      await this.ensureTransition(readyExport._id, sold._id, 'EXPORT');
+      // Defect -> In Warranty
+      { from: WarehouseCode.DEFECT, to: WarehouseCode.IN_WARRANTY, type: TransitionType.SEND_WARRANTY },
 
-      // Rule 5: Defect -> In Warranty
-      await this.ensureTransition(defect._id, inWarranty._id, 'SEND_WARRANTY');
+      // In Warranty -> Ready (Nhận lại dùng được)
+      { from: WarehouseCode.IN_WARRANTY, to: WarehouseCode.READY_TO_EXPORT, type: TransitionType.RECEIVE_WARRANTY },
 
-      this.logger.log('Warehouse System seeding completed!');
-    } catch (error) {
-      this.logger.error('Failed to seed Warehouse System', error);
+      // Ready -> Sold (Xuất bán)
+      { from: WarehouseCode.READY_TO_EXPORT, to: WarehouseCode.SOLD, type: TransitionType.EXPORT },
+    ];
+
+    for (const t of transitionsData) {
+      const fromId = t.from ? whMap[t.from] : null;
+      const toId = whMap[t.to];
+      if ((!fromId && t.from !== null) || !toId) {
+        this.logger.warn(`Skipping transition ${t.from} -> ${t.to}: ID not found`);
+        continue;
+      }
+      await this.ensureTransition(fromId, toId, t.type);
     }
   }
 
+  // --- HELPER METHODS ---
+
   private async ensureGroup(name: string, orderIndex: number) {
-    const existing = await this.warehouseGroupsService.findAll();
-    const found = existing.find((g: any) => g.name === name);
-    if (found) return found;
-    return await this.warehouseGroupsService.create({ name, orderIndex, isActive: true });
+    let group = await this.warehouseGroupModel.findOne({ name });
+    if (!group) {
+      group = await this.warehouseGroupModel.create({
+        name,
+        orderIndex,
+        isActive: true
+      });
+      this.logger.log(`Created Group: ${name}`);
+    }
+    return group;
   }
 
   private async ensureWarehouse(data: any) {
-    const existing = await this.warehousesService.findAll();
-    const found = existing.find((w: any) => w.code === data.code);
-    if (found) {
-      await this.warehousesService.update(found._id.toString(), { config: data.config });
-      return found;
+    let wh = await this.warehouseModel.findOne({ code: data.code });
+    if (!wh) {
+      wh = await this.warehouseModel.create(data);
+      this.logger.log(`Created Warehouse: ${data.name}`);
+    } else {
+      // Update config if exists
+      wh.config = data.config;
+      wh.groupId = data.groupId;
+      wh.color = data.color;
+      wh.icon = data.icon;
+      await wh.save();
     }
-    return await this.warehousesService.create({ ...data, isActive: true });
+    return wh;
   }
 
-  private async ensureTransition(fromId: any, toId: any, type: string) {
-    const all = await this.warehouseTransitionsService.findAll();
-    const exists = all.find((t: any) =>
-      String(t.fromWarehouseId) === String(fromId) &&
-      String(t.toWarehouseId) === String(toId) &&
-      t.type === type
-    );
+  private async ensureTransition(fromId: any, toId: any, transitionType: string) {
+    const all = await this.warehouseTransitionModel.find();
+
+    const exists = all.find((t: any) => {
+      const dbFrom = t.fromWarehouseId ? String(t.fromWarehouseId) : 'null';
+      const inputFrom = fromId ? String(fromId) : 'null';
+
+      return dbFrom === inputFrom &&
+        String(t.toWarehouseId) === String(toId) &&
+        t.transitionType === transitionType;
+    });
 
     if (!exists) {
-      await this.warehouseTransitionsService.create({
+      await this.warehouseTransitionModel.create({
         fromWarehouseId: fromId,
         toWarehouseId: toId,
-        type,
-        allowedRoles: ['super_admin', 'admin', 'editor'],
+        transitionType: transitionType,
+        allowedRoles: ['super_admin', 'warehouse_staff'],
         isActive: true
       });
-    }
-  }
-
-  private async seedCategories() {
-    try {
-      this.logger.log('Seeding Categories...');
-      const categories = [
-        { name: 'Camera IP', description: 'Camera giám sát mạng' },
-        { name: 'Camera Analog', description: 'Camera đi dây đồng trục' },
-        { name: 'Đầu ghi hình', description: 'NVR/DVR' },
-        { name: 'Ổ cứng', description: 'HDD lưu trữ' },
-        { name: 'Phụ kiện', description: 'Nguồn, Jack, Dây cáp' },
-      ];
-
-      const existing = await this.categoriesService.findAll();
-
-      for (const cat of categories) {
-        // Check theo tên (đơn giản)
-        const found = existing.find((e: any) => e.name === cat.name);
-        if (!found) {
-          await this.categoriesService.create(cat);
-          this.logger.log(`Created Category: ${cat.name}`);
-        }
-      }
-    } catch (error) {
-      this.logger.error('Failed to seed Categories', error);
-    }
-  }
-
-  // --- 2. SEED NGƯỜI DÙNG MẪU ---
-  private async seedUsers() {
-    try {
-      this.logger.log('Seeding Users...');
-
-      const roles = await this.fncRoleService.findAll();
-
-      // Helper tìm role id an toàn
-      const getRoleId = (code: string) => {
-        const r = roles.find((role: any) => role.code === code);
-        return r ? (r as any)._id : null;
-      };
-
-      const users = [
-        {
-          email: 'admin@alvar.vn',
-          username: 'admin',
-          name: 'Administrator',
-          password: 'password123',
-          role: getRoleId('super_admin') // Tìm ID động
-        },
-        {
-          email: 'kho@alvar.vn',
-          username: 'nhanvienkho',
-          name: 'Nhân viên Kho',
-          password: 'password123',
-          role: getRoleId('user')
-        },
-        {
-          email: 'nhap@alvar.vn',
-          username: 'user1',
-          name: 'Nguyễn Văn Nhập',
-          password: 'password123',
-          role: getRoleId('user')
-        }
-      ];
-
-      const allUsers = await this.usersService.findAll();
-
-      for (const u of users) {
-        if (!u.role) {
-          this.logger.warn(`Skipping user ${u.username} because role not found`);
-          continue;
-        }
-
-        const exists = allUsers.find((dbUser: any) => dbUser.email === u.email);
-        if (!exists) {
-          await this.usersService.create(u as any);
-          this.logger.log(`Created User: ${u.email}`);
-        }
-      }
-    } catch (error) {
-      this.logger.error('Failed to seed Users', error);
+      this.logger.log(`Created Transition: ${fromId ? fromId : 'NULL'} -> ${toId} [${transitionType}]`);
     }
   }
 }

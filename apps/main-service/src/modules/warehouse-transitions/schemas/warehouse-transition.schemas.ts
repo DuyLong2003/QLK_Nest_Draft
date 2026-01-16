@@ -13,10 +13,16 @@ export class WarehouseTransition extends Document {
   toWarehouseId!: Warehouse;
 
   @Prop({ required: true })
-  type!: string;
+  transitionType: string;
 
   @Prop({ type: [String], default: [] })
   allowedRoles: string[];
+
+  @Prop({ default: false })
+  requiresApproval: boolean;
+
+  @Prop({ default: false })
+  requiresNote: boolean;
 
   @Prop({ required: true })
   isActive!: boolean;

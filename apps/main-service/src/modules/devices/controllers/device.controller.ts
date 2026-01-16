@@ -9,7 +9,8 @@ import {
   Param,
   HttpStatus,
   HttpCode,
-  Res
+  Res,
+  Patch,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { DeviceService } from '../services/device.service';
@@ -108,5 +109,22 @@ export class DeviceController {
     }
 
     return filter;
+  }
+
+  /**
+   * [NEW] API Chuyển kho (Transfer)
+   * Method: PATCH /devices/:id/transfer
+   * Body: { toWarehouseId: string, note?: string }
+   */
+  @Patch(':id/transfer')
+  async transfer(
+    @Param('id') id: string,
+    @Body() body: { toWarehouseId: string; note?: string },
+    // @User() user: any // Sau này sẽ lấy từ Token
+  ) {
+    // Tạm thời hardcode userId
+    const userId = '69685cb83e015da83ef00a85';
+
+    return this.deviceService.transfer(id, body.toWarehouseId, userId, body.note);
   }
 }

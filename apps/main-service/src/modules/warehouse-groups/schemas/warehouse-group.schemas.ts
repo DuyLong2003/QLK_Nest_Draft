@@ -12,7 +12,7 @@ export class WarehouseGroup extends Document {
   @Prop({ required: true })
   orderIndex!: number;
 
-  @Prop({ required: true })
+  @Prop({ default: true })
   isActive!: boolean;
 
   // Virtual for id (will be handled by toJSON plugin)

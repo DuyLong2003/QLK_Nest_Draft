@@ -10,6 +10,11 @@ class ImportProductDto {
   @IsNotEmpty()
   quantity: number;
 
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  expectedSerials?: string[];
+
   @IsNumber()
   @IsOptional()
   boxCount?: number;

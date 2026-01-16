@@ -14,6 +14,33 @@ export class DeviceImportService {
   ) { }
 
   async create(createDto: CreateDeviceImportDto, userId: string): Promise<DeviceImport> {
+    // Kiểm tra Serial trước khi tạo mới -> Chỉ check kỹ khi trạng thái là PENDING (Lưu chính thức)
+    if (createDto.status === 'PENDING') {
+      const products = createDto.products || [];
+      for (const product of products) {
+        const p: any = product;
+        const serials = p.expectedSerials || [];
+
+        // 1. Check khớp số lượng
+        // Nếu đã nhập serial (>0) thì bắt buộc phải nhập ĐỦ bằng quantity
+        if (serials.length > 0 && serials.length !== p.quantity) {
+          throw new BadRequestException(
+            `Sản phẩm ${p.productCode}: Số lượng Serial khai báo (${serials.length}) không khớp với số lượng nhập (${p.quantity})`
+          );
+        }
+
+        // 2. Check trùng lặp nội bộ
+        if (serials.length > 0) {
+          const unique = new Set(serials);
+          if (unique.size !== serials.length) {
+            throw new BadRequestException(
+              `Sản phẩm ${p.productCode}: Danh sách Serial có chứa mã trùng lặp`
+            );
+          }
+        }
+      }
+    }
+
     // 1. Tự sinh mã phiếu nếu FE không gửi
     let code = createDto.code;
     if (!code) {
@@ -116,16 +143,27 @@ export class DeviceImportService {
     const ticket = await this.findById(id);
     let newStatus = ticket.inventoryStatus;
 
-    // Logic tự động cập nhật trạng thái kiểm kê
+    // 1. Tính toán trạng thái kiểm kê dựa trên số lượng đã quét
     if (data.serialImported > 0 && data.serialImported < ticket.totalQuantity) {
       newStatus = 'in-progress';
     } else if (data.serialImported >= ticket.totalQuantity) {
       newStatus = 'completed';
     }
 
-    return this.deviceImportRepository.update(id, {
+    const updatePayload: any = {
       serialImported: data.serialImported,
       inventoryStatus: newStatus
-    });
+    };
+
+    // Nếu kiểm kê xong (completed) -> Update luôn trạng thái phiếu (status) thành COMPLETED
+    if (newStatus === 'completed') {
+      updatePayload.status = 'COMPLETED';
+    }
+    // Nếu đang làm dở -> Update trạng thái phiếu thành IN_PROGRESS (để không còn là PENDING/DRAFT)
+    else if (newStatus === 'in-progress') {
+      updatePayload.status = 'IN_PROGRESS';
+    }
+
+    return this.deviceImportRepository.update(id, updatePayload);
   }
 }

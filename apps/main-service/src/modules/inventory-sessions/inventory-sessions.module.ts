@@ -5,7 +5,7 @@ import { InventorySessionService } from './services/inventory-session.service';
 import { InventorySessionRepository } from './repositories/inventory-session.repository';
 import { InventorySession, InventorySessionSchema } from './schemas/inventory-session.schema';
 import { DeviceImportModule } from '../device-imports/device-imports.module';
-import { DeviceModule } from '../devices/devices.module';
+import { DevicesModule } from '../devices/devices.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
 import { CategoriesModule } from '../categories/categories.module';
 
@@ -13,7 +13,7 @@ import { CategoriesModule } from '../categories/categories.module';
     imports: [
         MongooseModule.forFeature([{ name: InventorySession.name, schema: InventorySessionSchema }]),
         forwardRef(() => DeviceImportModule),
-        DeviceModule,
+        DevicesModule,
         WarehousesModule,
         CategoriesModule
     ],

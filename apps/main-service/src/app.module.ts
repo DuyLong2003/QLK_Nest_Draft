@@ -21,12 +21,19 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { WarehouseTransitionsModule } from './modules/warehouse-transitions/warehouse-transitions.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { SeedService } from './common/services/seed.service';
-import { DeviceModule } from './modules/devices/devices.module';
+import { DevicesModule } from './modules/devices/devices.module';
 import { DeviceImportModule } from './modules/device-imports/device-imports.module';
 import { DeviceExportModule } from './modules/device-exports/device-exports.module';
 import { DeviceHistoryModule } from './modules/device-histories/device-historys.module';
 import { InventorySessionModule } from './modules/inventory-sessions/inventory-sessions.module';
 import { ExcelModule } from './common/excel/excel.module';
+
+import { FncRole, FncRoleSchema } from './fnc-roles/entities/fnc-role.entity';
+import { User, UserSchema } from './users/entities/user.entity';
+import { WarehouseGroup, WarehouseGroupSchema } from './modules/warehouse-groups/schemas/warehouse-group.schemas';
+import { Warehouse, WarehouseSchema } from './modules/warehouses/schemas/warehouse.schemas';
+import { WarehouseTransition, WarehouseTransitionSchema } from './modules/warehouse-transitions/schemas/warehouse-transition.schemas';
+import { DeviceHistory, DeviceHistorySchema } from './modules/device-histories/schemas/device-history.schemas';
 
 @Module({
   imports: [
@@ -62,6 +69,15 @@ import { ExcelModule } from './common/excel/excel.module';
       ],
       inject: [ConfigService],
     }),
+
+    MongooseModule.forFeature([
+      { name: FncRole.name, schema: FncRoleSchema },
+      { name: User.name, schema: UserSchema },
+      { name: WarehouseGroup.name, schema: WarehouseGroupSchema },
+      { name: Warehouse.name, schema: WarehouseSchema },
+      { name: WarehouseTransition.name, schema: WarehouseTransitionSchema },
+      { name: DeviceHistory.name, schema: DeviceHistorySchema },
+    ]),
     // Cấu hình Kafka client để giao tiếp với Upload Service
     // ClientsModule.register([
     //   {
@@ -88,7 +104,7 @@ import { ExcelModule } from './common/excel/excel.module';
     WarehousesModule,
     WarehouseTransitionsModule,
     CategoriesModule,
-    DeviceModule,
+    DevicesModule,
     DeviceImportModule,
     DeviceExportModule,
     DeviceHistoryModule,
