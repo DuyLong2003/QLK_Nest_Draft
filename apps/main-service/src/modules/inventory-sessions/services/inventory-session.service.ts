@@ -9,6 +9,8 @@ import { DeviceImportService } from '../../device-imports/services/device-import
 import { DeviceService } from '../../devices/services/device.service';
 import { WarehouseRepository } from '../../warehouses/repositories/warehouse.repository';
 import { CategoryRepository } from '../../categories/repositories/categories.repository';
+import { ERROR_MESSAGES } from 'apps/main-service/src/common/constants/messages.constants';
+import { FilterQuery } from 'mongoose';
 
 @Injectable()
 export class InventorySessionService {
@@ -25,8 +27,8 @@ export class InventorySessionService {
 
     async create(createDto: CreateInventorySessionDto, userId: string): Promise<InventorySession> {
         const importTicket = await this.deviceImportService.findById(createDto.importId);
-        if (!importTicket) throw new NotFoundException('Phiếu nhập không tồn tại');
-        if (importTicket.status === 'COMPLETED') throw new BadRequestException('Phiếu nhập đã hoàn thành');
+        if (!importTicket) throw new NotFoundException(ERROR_MESSAGES.INVENTORY.IMPORT_NOT_FOUND);
+        if (importTicket.status === 'COMPLETED') throw new BadRequestException(ERROR_MESSAGES.INVENTORY.IMPORT_ALREADY_COMPLETED);
 
         const today = new Date();
         const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
@@ -45,8 +47,8 @@ export class InventorySessionService {
 
     async update(id: string, updateDto: UpdateInventorySessionDto, userId: string): Promise<InventorySession> {
         const session = await this.sessionRepo.findById(id);
-        if (!session) throw new NotFoundException('Không tìm thấy phiên kiểm kê');
-        if (session.status === 'completed') throw new BadRequestException('Phiên đã hoàn thành');
+        if (!session) throw new NotFoundException(ERROR_MESSAGES.INVENTORY.SESSION_NOT_FOUND);
+        if (session.status === 'completed') throw new BadRequestException(ERROR_MESSAGES.INVENTORY.ALREADY_COMPLETED);
 
         if (updateDto.status === 'completed') {
             return await this.completeSession(session, userId);
@@ -58,12 +60,14 @@ export class InventorySessionService {
             const duplicates = newSerials.filter(s => existingSerials.includes(s));
 
             if (duplicates.length > 0) {
-                throw new ConflictException(`Serial đã tồn tại trong phiên này: ${duplicates.join(', ')}`);
+                throw new ConflictException(
+                    ERROR_MESSAGES.INVENTORY.SERIAL_EXISTED.replace('{serials}', duplicates.join(', '))
+                );
             }
 
             const itemsToPush = updateDto.scannedItems.map(item => ({
                 serial: item.serial,
-                model: item.model,
+                deviceModel: item.deviceModel,
                 productCode: item.productCode || 'Unknown',
                 scannedAt: new Date()
             }));
@@ -83,28 +87,34 @@ export class InventorySessionService {
             this.logger.log(`Bắt đầu hoàn tất phiên ${session.code}`);
 
             const warehouse = await this.warehouseRepo.findOne({ code: 'PENDING_QC' });
-            if (!warehouse) throw new Error('Cấu hình lỗi: Không tìm thấy kho PENDING_QC');
+            if (!warehouse) throw new Error(ERROR_MESSAGES.INVENTORY.CONFIG_ERROR.replace('{warehouse}', 'PENDING_QC'));
 
             const importIdStr = String(session.importId);
             const importTicket = await this.deviceImportService.findById(importIdStr);
-            if (!importTicket) throw new Error('Không tìm thấy phiếu nhập');
+            if (!importTicket) throw new Error(ERROR_MESSAGES.INVENTORY.IMPORT_NOT_FOUND);
 
             const category = await this.categoryRepo.findOne({ name: importTicket.productType });
 
-            const devicesToCreate = session.details.map(item => ({
-                code: item.serial,
-                serial: item.serial,
-                name: item.model,
-                deviceModel: item.productCode || item.model,
-                unit: 'Cái',
-                qcStatus: 'PENDING',
-                warehouseId: String(warehouse._id),
-                categoryId: category ? String(category._id) : null,
-                importId: String(importTicket._id),
-                supplierId: importTicket.supplier || 'Unknown',
-                importDate: importTicket.importDate,
-                history: []
-            }));
+            const devicesToCreate = session.details.map(item => {
+                const modelName = item.deviceModel || item.model || 'Unknown Device';
+                return {
+                    code: item.serial,
+                    serial: item.serial,
+                    name: modelName,
+                    deviceModel: item.productCode || modelName,
+                    unit: 'Cái',
+                    qcStatus: 'PENDING',
+                    warehouseId: String(warehouse._id),
+                    categoryId: category ? String(category._id) : null,
+                    importId: String(importTicket._id),
+                    supplierId: importTicket.supplier || 'Unknown',
+                    importDate: importTicket.importDate,
+                    history: [],
+                    mac: '',
+                    p2p: '',
+                    currentExportId: null
+                };
+            });
 
             if (devicesToCreate.length > 0) {
                 await this.deviceService.insertMany(devicesToCreate, { session: mongoSession });
@@ -135,13 +145,13 @@ export class InventorySessionService {
         } catch (error: any) {
             await mongoSession.abortTransaction();
             this.logger.error(`Lỗi hoàn tất phiên: ${error.message}`);
-            throw new BadRequestException(`Lỗi hoàn tất phiên: ${error.message}`);
+            throw new BadRequestException(ERROR_MESSAGES.INVENTORY.COMPLETE_FAILED.replace('{error}', error.message));
         } finally {
             await mongoSession.endSession();
         }
     }
 
-    async findAll(filter: any = {}): Promise<InventorySession[]> {
+    async findAll(filter: FilterQuery<InventorySession> = {}): Promise<InventorySession[]> {
         return this.sessionRepo.findAll(filter);
     }
 
