@@ -119,7 +119,6 @@ export class DeviceImportService {
 
     const updated = await this.deviceImportRepository.update(id, updateData);
 
-    // Check null safely though update repo usually returns document or null
     if (!updated) {
       throw new BadRequestException(ERROR_MESSAGES.DEVICE_IMPORT.UPDATE_FAILED);
     }
@@ -150,14 +149,14 @@ export class DeviceImportService {
     return { totalItem, totalQuantity };
   }
 
-  async updateProgress(id: string, data: { serialImported: number }) {
+  async updateProgress(id: string, data: { serialImported: number, productCounts?: Record<string, number> }) {
     const ticket = await this.findById(id);
     let newStatus = ticket.inventoryStatus;
 
     // 1. Tính toán trạng thái kiểm kê dựa trên số lượng đã quét
     if (data.serialImported > 0 && data.serialImported < ticket.totalQuantity) {
       newStatus = 'in-progress';
-    } else if (data.serialImported >= ticket.totalQuantity) {
+    } else if (data.serialImported >= ticket.totalQuantity && ticket.totalQuantity > 0) {
       newStatus = 'completed';
     }
 
@@ -165,6 +164,23 @@ export class DeviceImportService {
       serialImported: data.serialImported,
       inventoryStatus: newStatus
     };
+
+    if (data.productCounts) {
+      const currentProducts = ticket.products || [];
+
+      updatePayload.products = currentProducts.map(p => {
+        const productObj = (typeof (p as any).toObject === 'function') ? (p as any).toObject() : p;
+
+        const additional = data.productCounts?.[productObj.productCode] || 0;
+        if (additional > 0) {
+          return {
+            ...productObj,
+            serialImported: (productObj.serialImported || 0) + additional
+          };
+        }
+        return productObj;
+      });
+    }
 
     // Nếu kiểm kê xong (completed) -> Update luôn trạng thái phiếu (status) thành COMPLETED
     if (newStatus === 'completed') {
