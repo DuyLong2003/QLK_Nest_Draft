@@ -1,4 +1,4 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { DeviceImportController } from './controllers/device-import.controller';
 import { DeviceImportService } from './services/device-import.service';
@@ -14,7 +14,6 @@ import { InventorySessionModule } from '../inventory-sessions/inventory-sessions
     DevicesModule,
     CategoriesModule,
     forwardRef(() => InventorySessionModule)
-
   ],
   controllers: [DeviceImportController],
   providers: [DeviceImportService, DeviceImportRepository],
