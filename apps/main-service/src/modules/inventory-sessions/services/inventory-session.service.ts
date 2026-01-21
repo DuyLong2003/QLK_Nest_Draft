@@ -127,9 +127,10 @@ export class InventorySessionService {
             if (newTotal > 0 && newTotal < importTicket.totalQuantity) newImportStatus = 'in-progress';
             if (newTotal >= importTicket.totalQuantity) newImportStatus = 'completed';
 
+            // Calculate per-product counts from this session
             const productCounts: Record<string, number> = {};
             session.details.forEach(item => {
-                const pCode = item.productCode || item.deviceModel;
+                const pCode = item.productCode || item.deviceModel; // fallback if productCode missing
                 if (pCode) {
                     productCounts[pCode] = (productCounts[pCode] || 0) + 1;
                 }

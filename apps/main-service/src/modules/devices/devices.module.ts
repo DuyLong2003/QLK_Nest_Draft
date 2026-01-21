@@ -20,7 +20,6 @@ import { WarehousesModule } from '../warehouses/warehouses.module';
     ]),
     ExcelModule,
     WarehousesModule,
-
   ],
   controllers: [DeviceController],
   providers: [DeviceService, DeviceRepository],
