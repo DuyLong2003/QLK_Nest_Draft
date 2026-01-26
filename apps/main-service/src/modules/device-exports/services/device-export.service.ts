@@ -113,7 +113,7 @@ export class DeviceExportService {
     }
 
     // 2. Validate Devices
-    const devices = await this.deviceService.findByMacs(serials); // Serials here are actually MACs
+    const devices = await this.deviceService.findByMacs(serials);
     const foundMacs = devices.map(d => d.mac);
     const missingSerials = serials.filter(s => !foundMacs.includes(s));
 
@@ -163,7 +163,6 @@ export class DeviceExportService {
       totalItems: exportRecord.items.length + newItems.length
     };
 
-    // Auto switch APPROVED -> IN_PROGRESS 
     if (exportRecord.status === ExportStatusEnum.APPROVED) {
       updateDto.status = ExportStatusEnum.IN_PROGRESS as any;
     }
@@ -190,11 +189,9 @@ export class DeviceExportService {
       throw new BadRequestException('Chỉ có thể duyệt phiếu đang Chờ duyệt (PENDING_APPROVAL).');
     }
 
-    // Validate Stock Availability
     if (exportRecord.requirements && exportRecord.requirements.length > 0) {
       for (const req of exportRecord.requirements) {
         const stockStatus = await this.getInventoryStatus(req.deviceCode);
-        // Note: getInventoryStatus already excludes PENDING_APPROVAL, so current export is not in 'reserved'
         if (stockStatus.available < req.quantity) {
           throw new BadRequestException(
             `Không đủ tồn kho khả dụng cho ${req.deviceCode}. Cần: ${req.quantity}, Khả dụng: ${stockStatus.available}`

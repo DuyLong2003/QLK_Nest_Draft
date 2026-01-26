@@ -25,7 +25,7 @@ export class InventorySession extends Document {
     @Prop({
         type: [{
             serial: String,
-            deviceModel: String,      // Tên hiển thị (VD: Camera Wifi A1) (NEW)
+            deviceModel: String,      // Tên hiển thị (VD: Camera Wifi A1)
             model: String,            // Legacy field (OLD)
             deviceCode: String,       // Mã định danh (VD: CAM-001) 
             scannedAt: { type: Date, default: Date.now }

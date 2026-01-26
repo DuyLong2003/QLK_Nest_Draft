@@ -60,11 +60,11 @@ export class DeviceImportService {
     const payload = {
       ...createDto,
       code,
-      devices, // Use processed devices with serialImported set
+      devices,
       details,
       totalItem,
       totalQuantity,
-      serialImported: totalSerialImported, // Set root serialImported
+      serialImported: totalSerialImported,
       status,
       createdBy: userId ? userId : null
     };
@@ -114,7 +114,6 @@ export class DeviceImportService {
 
     const updated = await this.deviceImportRepository.update(id, updateData);
 
-    // Check null safely though update repo usually returns document or null
     if (!updated) {
       throw new BadRequestException(ERROR_MESSAGES.DEVICE_IMPORT.UPDATE_FAILED);
     }
@@ -182,13 +181,10 @@ export class DeviceImportService {
       inventoryStatus: newStatus
     };
 
-    // Update device specific counts if provided
     if (data.deviceCounts) {
-      // Ensure we work with plain objects
       const currentDevices = ticket.devices || [];
 
       updatePayload.devices = currentDevices.map(d => {
-        // Convert to plain object if it's a Mongoose document
         const deviceObj = (typeof (d as any).toObject === 'function') ? (d as any).toObject() : d;
 
         const additional = data.deviceCounts?.[deviceObj.deviceCode] || 0;

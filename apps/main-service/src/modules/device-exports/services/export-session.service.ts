@@ -33,12 +33,12 @@ export class ExportSessionService {
             throw new BadRequestException('Chỉ có thể tạo phiên xuất kho cho phiếu đã được Duyệt hoặc Đang xuất.');
         }
 
-        // Auto generate session code
+        // Tạo mã phiên xuất kho
         const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const randomSuffix = Math.floor(1000 + Math.random() * 9000);
         const sessionCode = `EXS-${dateStr}-${randomSuffix}`;
 
-        // Default session name if not provided
+        // Tên phiên xuất kho mặc định
         const sessionName = dto.sessionName || `Phiên xuất kho ${exportRecord.code} - ${new Date().toLocaleString('vi-VN')}`;
 
         const newSession = await this.exportSessionRepository.create({
@@ -82,7 +82,7 @@ export class ExportSessionService {
         await this.validateScan(serial, session, exportRecord);
 
         // Add
-        const device = await this.deviceService.findByMac(serial); // Re-fetch to be safe/simple or optimize if needed
+        const device = await this.deviceService.findByMac(serial);
         const newItem = {
             serial: device.serial,
             deviceCode: device.deviceModel,
@@ -143,21 +143,14 @@ export class ExportSessionService {
         const warnings: { serial: string; warning: string }[] = [];
         const uniqueMacs = [...new Set(serials)];
 
-        // Pre-fetch all devices for performance
         const devices = await this.deviceService.findByMacs(uniqueMacs);
         const deviceMap = new Map();
         devices.forEach(d => deviceMap.set(d.mac, d));
 
-        // Get Ready Warehouse ID Once
         const readyWarehouse = await this.warehouseRepository.findOne({ code: 'READY_TO_EXPORT' });
 
         for (const serial of uniqueMacs) {
             try {
-                // Custom validate for bulk passing pre-fetched data if possible, but validateScan is robust
-                // For bulk, let's call validateScan but we need to handle "Device Not Found" cleanly
-                // Optimization: Re-implement checks here to avoid N queries
-
-                // 1. Session Duplicate
                 if (session.items.some(i => i.serial === serial)) {
                     throw new Error('Đã quét trong phiên này');
                 }

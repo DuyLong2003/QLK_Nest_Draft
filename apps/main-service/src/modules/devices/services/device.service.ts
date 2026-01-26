@@ -184,7 +184,6 @@ export class DeviceService implements OnModuleInit {
           warehouseId: soldWarehouse._id,
           warehouseUpdatedAt: new Date(),
           warehouseUpdatedBy: 'SYSTEM_EXPORT',
-          // Optionally add export info to history or notes?
         }
       }
     ).exec();
@@ -197,7 +196,7 @@ export class DeviceService implements OnModuleInit {
     return this.deviceModel.countDocuments({
       deviceModel: model,
       warehouseId: readyWarehouse._id,
-      qcStatus: 'PASS' // Ensure only QC Passed items are counted
+      qcStatus: 'PASS'
     }).exec();
   }
 }

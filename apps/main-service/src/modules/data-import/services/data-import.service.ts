@@ -55,7 +55,6 @@ export class DataImportService {
         const sheet = session.workbook.Sheets[sheetName];
         if (!sheet) throw new BadRequestException('Sheet not found');
 
-        // Read with header: 1 to get array of arrays
         const data: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
         if (data.length <= headerRowIndex) return { headers: [], sample: [] };
@@ -63,7 +62,6 @@ export class DataImportService {
         const headers = data[headerRowIndex].map(String);
         const sample = data.slice(headerRowIndex + 1, headerRowIndex + 6); // Next 5 rows
 
-        // Update session context
         session.sheetName = sheetName;
         session.headerRowIndex = headerRowIndex;
         this.sessions.set(sessionId, session);
@@ -85,11 +83,6 @@ export class DataImportService {
         const rawData: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
         const headers = rawData[headerRowIndex].map(String);
         const dataRows = rawData.slice(headerRowIndex + 1);
-
-        // Map data from Excel columns to DB fields
-        // mapping: { "deviceCode": "Mã thiết bị", "quantity": "Số lượng" } -> Key is DB field, Value is Excel Header Name
-        // OR mapping: { "deviceCode": "A", "quantity": "B" } if mapped by index?
-        // Usually mapping is { "dbField": "ExcelHeaderName" }
 
         const mappedData = dataRows.map(row => {
             const obj: any = {};

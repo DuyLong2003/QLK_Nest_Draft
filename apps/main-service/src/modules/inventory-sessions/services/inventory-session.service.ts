@@ -114,12 +114,10 @@ export class InventorySessionService {
             const devicesToCreate = session.details.map(item => {
                 const modelName = item.deviceModel || item.model || 'Unknown Device';
 
-                // [NEW] Find detailed info from Import Ticket
                 let detailedName = modelName;
                 let detailedP2P = '';
                 let foundDetail: any = null;
 
-                // Search in all devices of the ticket
                 if (importTicket && importTicket.devices) {
                     for (const dev of importTicket.devices) {
                         const found = dev.expectedDetails?.find(d => d.mac === item.serial);
@@ -127,7 +125,7 @@ export class InventorySessionService {
                             foundDetail = found;
                             detailedName = found.name || modelName;
                             detailedP2P = found.p2p || '';
-                            break; // Stop searching once found
+                            break;
                         }
                     }
                 }
@@ -135,10 +133,9 @@ export class InventorySessionService {
                 return {
                     code: item.serial,
 
-                    // FIX: Use Real Serial from Excel if found, else use MAC
                     serial: (foundDetail && foundDetail.serial) ? foundDetail.serial : item.serial,
 
-                    name: detailedName, // Use name from Excel if available
+                    name: detailedName,
                     deviceModel: item.deviceCode || modelName,
                     unit: 'Cái',
                     qcStatus: 'PENDING',
@@ -149,8 +146,8 @@ export class InventorySessionService {
                     importDate: importTicket.importDate,
                     history: [],
 
-                    mac: item.serial, // The scanned item IS the MAC
-                    p2p: detailedP2P, // Use P2P from Excel
+                    mac: item.serial,
+                    p2p: detailedP2P,
                     currentExportId: null
                 };
             });
@@ -162,12 +159,9 @@ export class InventorySessionService {
             const currentImported = importTicket.serialImported || 0;
             const newTotal = currentImported + session.totalScanned;
 
-
-
-            // Calculate per-device counts from this session
             const deviceCounts: Record<string, number> = {};
             session.details.forEach(item => {
-                const dCode = item.deviceCode || item.deviceModel; // fallback if deviceCode missing
+                const dCode = item.deviceCode || item.deviceModel;
                 if (dCode) {
                     deviceCounts[dCode] = (deviceCounts[dCode] || 0) + 1;
                 }
