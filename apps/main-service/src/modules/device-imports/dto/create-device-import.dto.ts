@@ -1,10 +1,11 @@
+// Trigger Reload
 import { IsString, IsNotEmpty, IsDateString, IsOptional, IsArray, ValidateNested, IsNumber, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class ImportProductDto {
+class ImportDeviceDto {
   @IsString()
   @IsNotEmpty()
-  productCode: string;
+  deviceCode: string;
 
   @IsNumber()
   @IsNotEmpty()
@@ -25,17 +26,30 @@ class ImportProductDto {
 
   @IsOptional()
   key?: string;
+
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => ImportDetailDto)
+  expectedDetails?: ImportDetailDto[];
 }
 
 class ImportDetailDto {
   @IsString()
-  serial: string;
+  @IsOptional()
+  serial?: string;
 
   @IsString()
-  p2p: string;
+  @IsOptional()
+  p2p?: string;
 
   @IsString()
+  @IsNotEmpty()
   mac: string;
+
+  @IsString()
+  @IsOptional()
+  name?: string;
 
 }
 
@@ -45,7 +59,7 @@ export class CreateDeviceImportDto {
 
   @IsString()
   @IsNotEmpty()
-  productType: string;
+  deviceType: string;
 
   @IsString()
   @IsNotEmpty()
@@ -72,13 +86,14 @@ export class CreateDeviceImportDto {
   notes?: string;
 
   @IsOptional()
-  @IsEnum(['DRAFT', 'COMPLETED', 'CANCELLED'])
+  @IsOptional()
+  @IsEnum(['DRAFT', 'PUBLIC', 'COMPLETED', 'CANCELLED'])
   status?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => ImportProductDto)
-  products: ImportProductDto[];
+  @Type(() => ImportDeviceDto)
+  devices: ImportDeviceDto[];
 
   @IsOptional()
   @IsArray()

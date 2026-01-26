@@ -11,7 +11,7 @@ export class DeviceImport extends Document {
   code: string;
 
   @Prop()
-  productType: string;
+  deviceType: string;
 
   @Prop({ required: true })
   origin: string;
@@ -33,22 +33,38 @@ export class DeviceImport extends Document {
 
   @Prop({
     type: [{
-      productCode: String,
+      deviceCode: String,
       quantity: Number,
       boxCount: Number,
       itemsPerBox: Number,
       serialImported: { type: Number, default: 0 },
-      expectedSerials: { type: [String], default: [] }
+      expectedSerials: { type: [String], default: [] },
+      expectedDetails: {
+        type: [{
+          mac: String,
+          serial: String,
+          p2p: String,
+          name: String
+        }],
+        default: []
+      }
     }],
     default: []
   })
-  products: Array<{
-    productCode: string;
+  devices: Array<{
+    deviceCode: string;
     quantity: number;
     boxCount: number;
     itemsPerBox: number;
     serialImported: number;
+
     expectedSerials: string[];
+    expectedDetails: Array<{
+      mac: string;
+      serial: string;
+      p2p: string;
+      name: string;
+    }>;
   }>;
 
   @Prop({ default: 0 })
@@ -63,7 +79,7 @@ export class DeviceImport extends Document {
   @Prop({ required: true })
   totalQuantity!: number;
 
-  @Prop({ default: 'DRAFT', enum: ['DRAFT', 'PUBLIC'] })
+  @Prop({ default: 'DRAFT', enum: ['DRAFT', 'PUBLIC', 'COMPLETED'] })
   status!: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })

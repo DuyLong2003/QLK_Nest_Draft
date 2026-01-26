@@ -70,7 +70,7 @@ export class InventorySessionService {
             const itemsToPush = updateDto.scannedItems.map(item => ({
                 serial: item.serial,
                 deviceModel: item.deviceModel,
-                productCode: item.productCode || 'Unknown',
+                deviceCode: item.deviceCode || 'Unknown',
                 scannedAt: new Date()
             }));
 
@@ -109,15 +109,37 @@ export class InventorySessionService {
             const importTicket = await this.deviceImportService.findById(importIdStr);
             if (!importTicket) throw new Error(ERROR_MESSAGES.INVENTORY.IMPORT_NOT_FOUND);
 
-            const category = await this.categoryRepo.findOne({ name: importTicket.productType });
+            const category = await this.categoryRepo.findOne({ name: importTicket.deviceType });
 
             const devicesToCreate = session.details.map(item => {
                 const modelName = item.deviceModel || item.model || 'Unknown Device';
+
+                // [NEW] Find detailed info from Import Ticket
+                let detailedName = modelName;
+                let detailedP2P = '';
+                let foundDetail: any = null;
+
+                // Search in all devices of the ticket
+                if (importTicket && importTicket.devices) {
+                    for (const dev of importTicket.devices) {
+                        const found = dev.expectedDetails?.find(d => d.mac === item.serial);
+                        if (found) {
+                            foundDetail = found;
+                            detailedName = found.name || modelName;
+                            detailedP2P = found.p2p || '';
+                            break; // Stop searching once found
+                        }
+                    }
+                }
+
                 return {
                     code: item.serial,
-                    serial: item.serial,
-                    name: modelName,
-                    deviceModel: item.productCode || modelName,
+
+                    // FIX: Use Real Serial from Excel if found, else use MAC
+                    serial: (foundDetail && foundDetail.serial) ? foundDetail.serial : item.serial,
+
+                    name: detailedName, // Use name from Excel if available
+                    deviceModel: item.deviceCode || modelName,
                     unit: 'Cái',
                     qcStatus: 'PENDING',
                     warehouseId: String(warehouse._id),
@@ -126,8 +148,9 @@ export class InventorySessionService {
                     supplierId: importTicket.supplier || 'Unknown',
                     importDate: importTicket.importDate,
                     history: [],
-                    mac: '',
-                    p2p: '',
+
+                    mac: item.serial, // The scanned item IS the MAC
+                    p2p: detailedP2P, // Use P2P from Excel
                     currentExportId: null
                 };
             });
@@ -139,25 +162,20 @@ export class InventorySessionService {
             const currentImported = importTicket.serialImported || 0;
             const newTotal = currentImported + session.totalScanned;
 
-            // [MODIFIED] Only update to 'in-progress' if pending. Do NOT auto-complete.
-            let newImportStatus = importTicket.inventoryStatus;
-            if (newImportStatus === 'pending' && newTotal > 0) {
-                newImportStatus = 'in-progress';
-            }
-            // WAS: if (newTotal >= importTicket.totalQuantity) newImportStatus = 'completed'; (REMOVED)
 
-            // Calculate per-product counts from this session
-            const productCounts: Record<string, number> = {};
+
+            // Calculate per-device counts from this session
+            const deviceCounts: Record<string, number> = {};
             session.details.forEach(item => {
-                const pCode = item.productCode || item.deviceModel; // fallback if productCode missing
-                if (pCode) {
-                    productCounts[pCode] = (productCounts[pCode] || 0) + 1;
+                const dCode = item.deviceCode || item.deviceModel; // fallback if deviceCode missing
+                if (dCode) {
+                    deviceCounts[dCode] = (deviceCounts[dCode] || 0) + 1;
                 }
             });
 
             await this.deviceImportService.updateProgress(String(importTicket._id), {
                 serialImported: newTotal,
-                productCounts
+                deviceCounts: deviceCounts
             });
 
             await this.sessionRepo.sessionModel.findByIdAndUpdate(
